@@ -13,7 +13,6 @@
 #include "pfs.h"
 
 #define PFS_MOUNT_POINT "/var/lib/ramfs-ns"
-#define STACKSIZE (1 << 20)
 
 int check_privs(pfs *p) {
 	int perms = 0;
