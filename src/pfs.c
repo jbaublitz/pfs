@@ -2,6 +2,8 @@
 #include <stdlib.h>
 #include <unistd.h>
 #include <sched.h>
+#include <wait.h>
+#include <fcntl.h>
 #include <string.h>
 #include <errno.h>
 
@@ -11,6 +13,7 @@
 #include "pfs.h"
 
 #define PFS_MOUNT_POINT "/var/lib/ramfs-ns"
+#define STACKSIZE (1 << 20)
 
 int check_privs(pfs *p) {
 	int perms = 0;
@@ -53,32 +56,90 @@ int ns_ramfs_mount(pfs *p) {
 	}
 }
 
-int ns_ramfs_fork_exec(pfs *p) {
-	execv(p->argv[1], p->argv + 1);
+int ns_ramfs_clone_exec(pfs *p) {
+	if (seteuid(p->user) < 0) {
+		printf("Failed to drop privileges\n");
+		return -1;
+	}
+
+	char **argv = malloc(p->argc);
+	if (!argv) {
+		printf("Failed to allocate memory for execv call\n");
+		return -1;
+	}
+
+	int i;
+	for (i = 0; i < p->argc; i++) {
+		argv[i] = p->argv[i + 1];
+	}
+	argv[p->argc - 1] = NULL;
+	execv(p->argv[1], argv);
+	return -1;
 }
 
-int ns_ramfs_wrapper(void *arg) {
-	pfs *p = (pfs *)arg;
-	unshare(CLONE_NEWNS);
+int ns_forker(pfs *p, int (*callback)(pfs *)) {
+	pid_t pid = fork();
+	if (pid < 0) {
+		printf("Failed to fork: %s\n", strerror(errno));
+		return 1;
+	} else if (pid == 0) {
+		if (callback(p) < 0)
+			return 1;
+	} else {
+		int status;
+		if (waitpid(pid, &status, 0) < 0) {
+			printf("Failed to wait on child: %s\n", strerror(errno));
+			return 1;
+		}
+		if (!WIFEXITED(status)) {
+			printf("Child exited abnormally\n");
+			return 1;
+		}
+	}
 
-	ns_ramfs_mount(p);
-	//ns_ramfs_fork_exec(p);
+	return 0;
+}
+
+int ns_ramfs(pfs *p) {
+	char ns_path[512];
+	snprintf(ns_path, sizeof(ns_path), "/proc/%d/ns/mnt", getpid());
+	int nfd = open(ns_path, O_RDONLY);
+	if (nfd < 0) {
+		printf("Failed to open namespace pseudo file\n");
+		return -1;
+	}
+
+	setns(nfd, CLONE_NEWNS);
+
+	if (ns_ramfs_mount(p) < 0)
+		return -1;
+	if (ns_forker(p, ns_ramfs_clone_exec) < 0)
+		return -1;
 	umount(PFS_MOUNT_POINT);
 }
 
-int main(int argc, char *argv[]) {
-	if (argc < 2)
-		return 1;
+void usage() {
+	printf("USAGE: pfs EXEC [ARG...]\n");
+	printf("\tEXEC\tExecutable to which to expose temporary in-memory filesystem\n");
+	printf("\tARG\tArgs to pass to executable\n");
+	exit(1);
+}
 
-	pfs p;
+int main(int argc, char *argv[]) {
+	pfs p = {
+		.argc = argc,
+		.argv = argv
+	};
+
+	if (argc < 2)
+		usage();
 
 	int r = check_privs(&p);
 	if (r < 0)
 		return 1;
 
-	char *cstack = malloc(STACKSIZE);
+	if (ns_forker(&p, ns_ramfs) < 0)
+		return 1;
 
-	if (clone(ns_ramfs_wrapper, cstack + STACKSIZE, CLONE_NEWNS, (void *)&p) < 0) {
-		printf("Failed to create namespace for filesystem: %s\n", strerror(errno));
-	}
+	return 0;
 }
