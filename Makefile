@@ -15,15 +15,19 @@ $(PFSBINPATH): $(PFSOBJPATH)
 $(BINDIR)/%.o: $(SRCDIR)/%.c $(SRCDIR)/%.h
 	gcc -D_GNU_SOURCE -o $@ -c $<
 
-.PHONY:
+.PHONY: bindir
 bindir:
 	@mkdir -p ./$(BINDIR)
 
-.PHONY:
+.PHONY: clean
 clean:
 	rm $(PFSOBJPATH) $(PFSBINPATH)
 
-.PHONY:
+.PHONY: sticky
 sticky:
 	chown root:root $(PFSBINPATH)
 	chmod +s $(PFSBINPATH)
+
+.PHONY: test
+test:
+	python test/test.py
