@@ -28,7 +28,8 @@ int check_privs(pfs *p) {
 		perms = 1;
 	}
 	if (perms) {
-		printf("Change executable permissions to root and enable setuid bit instead\n");
+		printf("Change executable permissions to root and enable"
+				"setuid bit instead\n");
 		return -1;
 	}
 
@@ -38,24 +39,61 @@ int check_privs(pfs *p) {
 }
 
 int ns_ramfs_mount(pfs *p) {
-	if (mkdir(PFS_MOUNT_POINT, 0700) < 0 && errno != EEXIST) {
+	if (mkdir(PFS_MOUNT_POINT, 0755) < 0 && errno != EEXIST) {
 		printf("Failed to make ramfs mount point: %s\n", strerror(errno));
 		return -1;
 	}
 	if (errno == EEXIST)
 		errno = 0;
-
-	char data[32];
-	snprintf(data, sizeof(data), "uid=%d,gid=%d", p->user, p->group);
-	if (mount("ramfs", PFS_MOUNT_POINT, "ramfs", 0, data) < 0) {
+	if (mount("ramfs", PFS_MOUNT_POINT, "ramfs", 0, NULL) < 0) {
+		printf("Failed to mount top level ramfs: %s\n", strerror(errno));
 		return -1;
 	}
 	if (mount(NULL, PFS_MOUNT_POINT, NULL, MS_PRIVATE, NULL) < 0) {
+		printf("Failed to make top level ramfs private: %s\n", strerror(errno));
+		return -1;
+	}
+
+	char path[4096];
+	snprintf(path, sizeof(path), "%s/%d", PFS_MOUNT_POINT, getpid());
+	if (mkdir(path, 0700) < 0 && errno != EEXIST) {
+		printf("Failed to make namespaced ramfs mount point: %s\n",
+				strerror(errno));
+		return -1;
+	}
+	if (mount("ramfs", path, "ramfs", 0, NULL) < 0) {
+		printf("Failed to mount namespaced ramfs: %s\n", strerror(errno));
+		return -1;
+	}
+	if (mount(NULL, path, NULL, MS_PRIVATE, NULL) < 0) {
+		printf("Failed to make namespaced ramfs private: %s\n", strerror(errno));
+		return -1;
+	}
+	if (chown(path, p->user, p->group) < 0) {
+		printf("Failed to change namespaced ramfs owner: %s\n", strerror(errno));
+		return -1;
+	}
+	if (chmod(path, 0700) < 0) {
+		printf("Failed to change namespaced ramfs permissions: %s\n",
+				strerror(errno));
 		return -1;
 	}
 }
 
 int ns_ramfs_clone_exec(pfs *p) {
+	char ns_path[512];
+	snprintf(ns_path, sizeof(ns_path), "/proc/%d/ns/mnt", getpid());
+	int nfd = open(ns_path, O_RDONLY);
+	if (nfd < 0) {
+		printf("Failed to open namespace pseudo file\n");
+		return -1;
+	}
+	setns(nfd, CLONE_NEWNS);
+
+	if (setuid(p->user) < 0) {
+		printf("Failed to drop privileges\n");
+		return -1;
+	}
 	if (seteuid(p->user) < 0) {
 		printf("Failed to drop privileges\n");
 		return -1;
@@ -100,20 +138,14 @@ int ns_forker(pfs *p, int (*callback)(pfs *)) {
 }
 
 int ns_ramfs(pfs *p) {
-	char ns_path[512];
-	snprintf(ns_path, sizeof(ns_path), "/proc/%d/ns/mnt", getpid());
-	int nfd = open(ns_path, O_RDONLY);
-	if (nfd < 0) {
-		printf("Failed to open namespace pseudo file\n");
-		return -1;
-	}
-
-	setns(nfd, CLONE_NEWNS);
-
 	if (ns_ramfs_mount(p) < 0)
 		return -1;
 	if (ns_forker(p, ns_ramfs_clone_exec) < 0)
 		return -1;
+
+	char path[4096];
+	snprintf(path, sizeof(path), "%s/%d", PFS_MOUNT_POINT, getpid());
+	umount(path);
 	umount(PFS_MOUNT_POINT);
 }
 
