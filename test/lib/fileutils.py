@@ -3,7 +3,7 @@ import sys
 from . import stringcontents
 
 def write_file(f):
-    print('Creating file in ramfs-ns mount...')
+    print('Creating file {0} in ramfs-ns mount...'.format(f))
     try:
         f = open(f, 'w')
         f.write(stringcontents)
@@ -15,7 +15,8 @@ def write_file(f):
     print("SUCCESS")
 
 def read_file(f):
-    print('Reading file in ramfs-ns mount...')
+    print('Reading file {0} in ramfs-ns mount...'.format(f))
+    s = None
     try:
         f = open(f, 'r')
         s = f.read()

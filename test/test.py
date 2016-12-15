@@ -4,7 +4,7 @@ import os
 import sys
 import subprocess
 
-from lib import f, stringcontents
+from lib import filename, stringcontents
 from lib.fileutils import read_file
 
 def main():
@@ -13,13 +13,14 @@ def main():
     stdout, stderr = p.communicate()
     print(stdout)
 
-    filecontents = read_file(f)
-    print('Checking file contents... ')
-    if filecontents != stringcontents:
-        print('FAILURE')
-        sys.exit(1)
-
-    print('SUCCESS')
+    f = filename(p.pid)
+    print('Checking file {0} cannot be read outside of sandbox...'.format(f))
+    try:
+        filecontents = open(f).read()
+        if filecontents == stringcontents:
+            print('FAILURE')
+    except IOError as e:
+        print('SUCCESS')
 
 if __name__ == '__main__':
     main()

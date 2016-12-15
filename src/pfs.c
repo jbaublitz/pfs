@@ -38,7 +38,7 @@ int check_privs(pfs *p) {
 	return 0;
 }
 
-int ns_ramfs_mount(pfs *p) {
+int ns_ramfs_mount(char *path, pfs *p) {
 	if (mkdir(PFS_MOUNT_POINT, 0755) < 0 && errno != EEXIST) {
 		printf("Failed to make ramfs mount point: %s\n", strerror(errno));
 		return -1;
@@ -54,8 +54,6 @@ int ns_ramfs_mount(pfs *p) {
 		return -1;
 	}
 
-	char path[4096];
-	snprintf(path, sizeof(path), "%s/%d", PFS_MOUNT_POINT, getpid());
 	if (mkdir(path, 0700) < 0 && errno != EEXIST) {
 		printf("Failed to make namespaced ramfs mount point: %s\n",
 				strerror(errno));
@@ -138,13 +136,14 @@ int ns_forker(pfs *p, int (*callback)(pfs *)) {
 }
 
 int ns_ramfs(pfs *p) {
-	if (ns_ramfs_mount(p) < 0)
+	char path[4096];
+	snprintf(path, sizeof(path), "%s/%d", PFS_MOUNT_POINT, getpid());
+
+	if (ns_ramfs_mount(path, p) < 0)
 		return -1;
 	if (ns_forker(p, ns_ramfs_clone_exec) < 0)
 		return -1;
 
-	char path[4096];
-	snprintf(path, sizeof(path), "%s/%d", PFS_MOUNT_POINT, getpid());
 	umount(path);
 	umount(PFS_MOUNT_POINT);
 }
@@ -169,7 +168,7 @@ int main(int argc, char *argv[]) {
 	if (r < 0)
 		return 1;
 
-	if (ns_forker(&p, ns_ramfs) < 0)
+	if (ns_ramfs(&p) < 0)
 		return 1;
 
 	return 0;
