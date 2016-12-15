@@ -97,18 +97,7 @@ int ns_ramfs_clone_exec(pfs *p) {
 		return -1;
 	}
 
-	char **argv = malloc(p->argc);
-	if (!argv) {
-		printf("Failed to allocate memory for execv call\n");
-		return -1;
-	}
-
-	int i;
-	for (i = 0; i < p->argc; i++) {
-		argv[i] = p->argv[i + 1];
-	}
-	argv[p->argc - 1] = NULL;
-	execv(p->argv[1], argv);
+	execv(p->argv[1], p->argv + 1);
 	return -1;
 }
 
