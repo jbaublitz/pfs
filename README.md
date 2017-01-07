@@ -1,2 +1,2 @@
-# fuse-pfs
-A process group restricted FUSE file system
+# pfs
+A wrapper to expose temporary in-memory filesystems to a process
