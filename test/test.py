@@ -11,10 +11,13 @@ def main():
     p = subprocess.Popen(['./bin/pfs', os.path.join(os.environ['PWD'], 'test',
             'exec.py')], stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
     stdout, stderr = p.communicate()
-    print(stdout)
+    print(stdout.decode('utf-8'))
+    if p.returncode != 0:
+        print('FAILURE')
+        sys.exit(1)
 
-    f = filename(p.pid)
-    print('Checking file {0} cannot be read outside of sandbox...'.format(f))
+    f = filename(1)
+    print('Checking file cannot be read outside of namespace...')
     try:
         filecontents = open(f).read()
         if filecontents == stringcontents:
