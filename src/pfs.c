@@ -33,9 +33,9 @@ int check_privs(pfs *p) {
         return -1;
     }
 
-p->user = uid;
-p->group = gid;
-return 0;
+    p->user = uid;
+    p->group = gid;
+    return 0;
 }
 
 int set_mnt_ns_exec(pfs *p) {
@@ -119,7 +119,7 @@ int ns_forker(pfs *p, int (*child_callback)(pfs *p)) {
     return 0;
 }
 
-int set_pid_ns(pfs *p) {
+int set_pid_ns_fork(pfs *p) {
     int rc = 0;
     if (unshare(CLONE_NEWPID) < 0) {
         printf("Failed to create new PID namespace");
@@ -154,7 +154,7 @@ int main(int argc, char *argv[]) {
     if (r < 0)
         return 1;
 
-    if (set_pid_ns(&p) < 0)
+    if (set_pid_ns_fork(&p) < 0)
         return 1;
 
     return 0;
