@@ -129,11 +129,11 @@ int set_pid_ns(pfs *p) {
         printf("Failed to create new PID namespace");
         return -1;
     }
-	if (ns_forker(p, set_mnt_ns) < 0)
+    if (ns_forker(p, set_mnt_ns) < 0)
         return -1;
 
-	umount(p->path);
-	umount(PFS_MOUNT_POINT);
+    umount(p->path);
+    umount(PFS_MOUNT_POINT);
 
     return rc;
 }
