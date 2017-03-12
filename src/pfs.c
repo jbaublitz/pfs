@@ -228,12 +228,17 @@ int main(int argc, char *argv[]) {
     if (parse_args(argc, argv, &p) < 0)
         return 1;
 
-    int r = check_privs(&p);
-    if (r < 0)
+    if (check_privs(&p) < 0) {
+        free(p.argv_pfs);
         return 1;
+    }
 
-    if (set_pid_ns_fork(&p) != 0)
+    if (set_pid_ns_fork(&p) != 0) {
+        free(p.argv_pfs);
         return 1;
+    }
+
+    free(p.argv_pfs);
 
     return 0;
 }
