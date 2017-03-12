@@ -187,6 +187,10 @@ int parse_args(int argc, char **argv, pfs *p) {
             case 'c':
                 if (!p->command) {
                     p->command = realpath(optarg, NULL);
+                    if (!p->command) {
+                        usage("Command specified does not exist");
+                        goto free_argv_pfs;
+                    }
                 } else {
                     usage("Only one command allowed");
                     goto free_argv_pfs;
