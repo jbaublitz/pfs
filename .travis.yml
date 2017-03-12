@@ -1,0 +1,7 @@
+before_install:
+install:
+before_script:
+script: make && make test
+after_success:
+after_failure:
+after_script:
