@@ -30,4 +30,4 @@ sticky:
 
 .PHONY: test
 test:
-	python test/test.py
+	./test/test.py
