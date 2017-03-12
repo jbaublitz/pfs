@@ -10,10 +10,7 @@ def write_file(f):
         f.write(stringcontents)
         f.close()
     except IOError as e:
-        print("FAILURE")
         sys.exit(1)
-
-    print("SUCCESS")
 
 def read_file(f):
     print('Reading file in ramfs-ns mount...')
@@ -23,7 +20,4 @@ def read_file(f):
         s = f.read()
         f.close()
     except IOError as e:
-        print("FAILURE")
         sys.exit(1)
-
-    print("SUCCESS")
