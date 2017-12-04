@@ -1,3 +1,4 @@
+CC=clang
 SRCDIR=src
 BINDIR=bin
 PFSBIN=pfs
@@ -10,10 +11,10 @@ PFSOBJPATH=$(PFSOBJ:%=$(BINDIR)/%)
 all: bindir $(PFSBINPATH)
 
 $(PFSBINPATH): $(PFSOBJPATH)
-	gcc -o $@ $^
+	$(CC) -o $@ $^
 
 $(BINDIR)/%.o: $(SRCDIR)/%.c $(SRCDIR)/%.h
-	gcc -D_GNU_SOURCE -o $@ -c $<
+	$(CC) -D_GNU_SOURCE -o $@ -c $<
 
 .PHONY: bindir
 bindir:
