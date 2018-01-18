@@ -28,7 +28,3 @@ clean:
 sticky:
 	chown root:root $(PFSBINPATH)
 	chmod +s $(PFSBINPATH)
-
-.PHONY: test
-test:
-	./test/test.py

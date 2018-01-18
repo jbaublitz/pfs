@@ -14,8 +14,6 @@
 
 #include "pfs.h"
 
-#define PFS_MOUNT_POINT "/var/lib/ramfs-ns"
-
 int check_privs(pfs *p) {
     int perms = 0;
     uid_t uid = getuid();
@@ -41,24 +39,7 @@ int set_mnt_ns_exec(pfs *p) {
         return -1;
     }
 
-    snprintf(p->path, MOUNT_PATH_SIZE, "%s/%d", PFS_MOUNT_POINT, getpid());
-
-    if (mkdir(PFS_MOUNT_POINT, 0755) < 0 && errno != EEXIST) {
-        printf("Failed to make ramfs mount point: %s\n", strerror(errno));
-        return -1;
-    }
-    if (errno == EEXIST)
-        errno = 0;
-    if (mount("ramfs", PFS_MOUNT_POINT, "ramfs", 0, NULL) < 0) {
-        printf("Failed to mount top level ramfs: %s\n", strerror(errno));
-        return -1;
-    }
-    if (mount(NULL, PFS_MOUNT_POINT, NULL, MS_PRIVATE, NULL) < 0) {
-        printf("Failed to make top level ramfs private: %s\n", strerror(errno));
-        return -1;
-    }
-
-    if (mkdir(p->path, 0700) < 0 && errno != EEXIST) {
+    if (mkdir(p->path, 0700) < 0) {
         printf("Failed to make namespaced ramfs mount point: %s\n",
                 strerror(errno));
         return -1;
@@ -127,8 +108,10 @@ int set_pid_ns_fork(pfs *p) {
     if (rc < 0)
         return -1;
 
-    umount(p->path);
-    umount(PFS_MOUNT_POINT);
+    if (rmdir(p->path)) {
+        printf("Failed to clean up on exit: %s\n", strerror(errno));
+        printf("You will need to manually remove %s\n", p->path);
+    }
 
     return rc;
 }
@@ -228,6 +211,7 @@ int main(int argc, char *argv[]) {
         .group = 0,
         .command = NULL
     };
+    snprintf(p.path, MOUNT_PATH_SIZE, "./.%s-%d", getlogin(), getpid());
 
     if (parse_args(argc, argv, &p) < 0)
         return 1;
