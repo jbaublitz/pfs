@@ -12,12 +12,19 @@
 #include <sys/stat.h>
 #include <sys/mount.h>
 
-#include "pfs.h"
+#define MOUNT_PATH_SIZE 512
+
+typedef struct pfs_t {
+    int argc_pfs;
+    char **argv_pfs;
+    uid_t user;
+    uid_t group;
+    char path[MOUNT_PATH_SIZE];
+} pfs;
 
 int check_privs(pfs *p) {
     int perms = 0;
     uid_t uid = getuid();
-    uid_t gid = getgid();
     uid_t euid = geteuid();
     if (uid == 0 && !p->user) {
         printf("Cannot run as root without -u parameter\n");
@@ -28,14 +35,12 @@ int check_privs(pfs *p) {
         return -1;
     }
 
-    p->user = uid;
-    p->group = gid;
     return 0;
 }
 
 int set_mnt_ns_exec(pfs *p) {
     if (unshare(CLONE_NEWNS) < 0) {
-        printf("Failed to create new mount namespace");
+        printf("Failed to create new mount namespace\n");
         return -1;
     }
 
@@ -71,7 +76,8 @@ int set_mnt_ns_exec(pfs *p) {
         return -1;
     }
 
-    execv(p->command, p->argv_pfs);
+    execv(p->argv_pfs[0], p->argv_pfs);
+    printf("Failed to exec %s\n", p->argv_pfs[0]);
     return -1;
 }
 
@@ -133,88 +139,71 @@ int parse_args(int argc, char **argv, pfs *p) {
         return 1;
     }
 
-    int opt, argcount = 1;
+    int opt, argcount = 0;
     p->argv_pfs = calloc(argc + 1, sizeof(char *));
     if (!p->argv_pfs) {
         printf("Failed to allocate buffer for command arguments");
         return -1;
     }
-    while ((opt = getopt(argc, argv, "u:g:c:a:")) != -1) {
+    int i;
+    for (i = 1; i < argc; i++) {
+        if (!strcmp("--", argv[i])) {
+            break;
+        }
+        printf("%s\n", argv[i]);
+        p->argv_pfs[i - 1] = argv[i];
+    }
+    while ((opt = getopt(argc - i, argv + i, "u:g:")) != -1) {
         switch (opt) {
+            char *end = NULL;
+            uid_t uid;
+            uid_t gid;
             case 'u':
-                if (!p->user) {
-                    struct passwd *uinfo = getpwnam(optarg);
-                    if (!uinfo) {
-                        printf("Username does not exist\n");
-                        goto free_argv_pfs;
-                    }
-                    p->user = uinfo->pw_uid;
-                } else {
-                    usage("Only one username allowed");
-                    goto free_argv_pfs;
+                uid = strtol(optarg, &end, 10);
+                if (!uid || *end != '\0') {
+                    usage("Failed to parse uid");
+                    return -1;
                 }
+                p->user = uid;
+                end = NULL;
                 break;
             case 'g':
-                if (!p->group) {
-                    struct passwd *uinfo = getpwnam(optarg);
-                    if (!uinfo) {
-                        printf("Group name does not exist\n");
-                        goto free_argv_pfs;
-                    }
-                    p->group = uinfo->pw_gid;
-                } else {
-                    usage("Only one group name allowed");
-                    goto free_argv_pfs;
+                gid = strtol(optarg, &end, 10);
+                if (!gid || *end != '\0') {
+                    usage("Failed to parse gid");
+                    return -1;
                 }
-                break;
-            case 'c':
-                if (!p->command) {
-                    p->command = realpath(optarg, NULL);
-                    if (!p->command) {
-                        usage("Command specified does not exist");
-                        goto free_argv_pfs;
-                    }
-                } else {
-                    usage("Only one command allowed");
-                    goto free_argv_pfs;
-                }
-                break;
-            case 'a':
-                p->argv_pfs[argcount++] = optarg;
+                p->group = gid;
+                end = NULL;
                 break;
             default:
-                usage("Unrecognized argument");
-                goto free_argv_pfs;
+                usage("Unrecognized option");
         }
     }
 
-    if (!p->command) {
+    if (i == 0) {
         usage("Must supply command");
-        goto free_argv_pfs;
+        return -1;
     }
 
-    p->argv_pfs[0] = basename(p->command);
-    p->argv_pfs[argcount] = (char *)NULL;
+    p->argv_pfs[i] = (char *)NULL;
     if (!p->group)
         p->group = p->user;
 
     return 0;
-
-free_argv_pfs:
-    free(p->argv_pfs);
-    return -1;
 }
 
 int main(int argc, char *argv[]) {
     pfs p = {
         .user = 0,
         .group = 0,
-        .command = NULL
     };
     snprintf(p.path, MOUNT_PATH_SIZE, "./.%s-%d", getlogin(), getpid());
 
-    if (parse_args(argc, argv, &p) < 0)
+    if (parse_args(argc, argv, &p) < 0) {
+        free(p.argv_pfs);
         return 1;
+    }
 
     if (check_privs(&p) < 0) {
         free(p.argv_pfs);

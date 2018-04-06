@@ -13,7 +13,7 @@ all: bindir $(PFSBINPATH)
 $(PFSBINPATH): $(PFSOBJPATH)
 	$(CC) -o $@ $^
 
-$(BINDIR)/%.o: $(SRCDIR)/%.c $(SRCDIR)/%.h
+$(BINDIR)/%.o: $(SRCDIR)/%.c
 	$(CC) -D_GNU_SOURCE -o $@ -c $<
 
 .PHONY: bindir
