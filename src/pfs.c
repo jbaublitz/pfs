@@ -160,7 +160,7 @@ int parse_args(int argc, char **argv, pfs *p) {
             uid_t gid;
             case 'u':
                 uid = strtol(optarg, &end, 10);
-                if (!uid || *end != '\0') {
+                if (!uid && *end != '\0') {
                     usage("Failed to parse uid");
                     return -1;
                 }
@@ -169,7 +169,7 @@ int parse_args(int argc, char **argv, pfs *p) {
                 break;
             case 'g':
                 gid = strtol(optarg, &end, 10);
-                if (!gid || *end != '\0') {
+                if (!gid && *end != '\0') {
                     usage("Failed to parse gid");
                     return -1;
                 }
@@ -187,7 +187,7 @@ int parse_args(int argc, char **argv, pfs *p) {
     }
 
     p->argv_pfs[i] = (char *)NULL;
-    if (!p->group)
+    if (p->group == -1)
         p->group = p->user;
 
     return 0;
@@ -196,7 +196,7 @@ int parse_args(int argc, char **argv, pfs *p) {
 int main(int argc, char *argv[]) {
     pfs p = {
         .user = 0,
-        .group = 0,
+        .group = -1,
     };
     snprintf(p.path, MOUNT_PATH_SIZE, "./.%s-%d", getlogin(), getpid());
 
