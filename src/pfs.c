@@ -44,17 +44,12 @@ int set_mnt_ns_exec(pfs *p) {
         return -1;
     }
 
-    if (mkdir(p->path, 0700) < 0) {
-        printf("Failed to make namespaced ramfs mount point: %s\n",
-                strerror(errno));
+    if (mount(NULL, "/", NULL, MS_REC | MS_PRIVATE, NULL) < 0) {
+        printf("Failed to make namespaced filesystem private: %s\n", strerror(errno));
         return -1;
     }
     if (mount("ramfs", p->path, "ramfs", 0, NULL) < 0) {
         printf("Failed to mount namespaced ramfs: %s\n", strerror(errno));
-        return -1;
-    }
-    if (mount(NULL, p->path, NULL, MS_PRIVATE, NULL) < 0) {
-        printf("Failed to make namespaced ramfs private: %s\n", strerror(errno));
         return -1;
     }
     if (chown(p->path, p->user, p->group) < 0) {
@@ -105,6 +100,12 @@ int ns_forker(pfs *p, int (*child_callback)(pfs *p)) {
 }
 
 int set_pid_ns_fork(pfs *p) {
+    if (mkdir(p->path, 0700) < 0) {
+        printf("Failed to make ramfs mount point: %s\n",
+                strerror(errno));
+        return -1;
+    }
+
     if (unshare(CLONE_NEWPID) < 0) {
         printf("Failed to create new PID namespace");
         return -1;
@@ -126,7 +127,7 @@ void usage(char *msg) {
     if (msg) {
         printf("%s\n\n", msg);
     }
-    printf("USAGE: pfs [-u USER] [-g GROUP] -c COMMAND [-a ARG1 [-a ARG2...]]\n");
+    printf("USAGE: pfs COMMAND [ARG1 ARG2...] -- [-u USER] [-g GROUP]\n");
     printf("\tUSER\tRun executable with these user permissions\n");
     printf("\tGROUP\tRun executable with these group permissions\n");
     printf("\tCOMMAND\tExecutable to which to expose temporary in-memory filesystem\n");
@@ -150,7 +151,6 @@ int parse_args(int argc, char **argv, pfs *p) {
         if (!strcmp("--", argv[i])) {
             break;
         }
-        printf("%s\n", argv[i]);
         p->argv_pfs[i - 1] = argv[i];
     }
     while ((opt = getopt(argc - i, argv + i, "u:g:")) != -1) {
